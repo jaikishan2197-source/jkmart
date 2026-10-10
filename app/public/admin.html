@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Dashboard - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div id="denied" class="empty" style="display:none;">
+    <h3>Access denied</h3>
+    <p>This area requires administrator access.</p>
+    <p><a class="btn" href="login.html">Log in as admin</a></p>
+  </div>
+
+  <div id="panel" style="display:none;">
+    <div class="page-head">
+      <h1>Admin Dashboard</h1>
+    </div>
+
+    <div class="chips" style="margin-bottom:20px;" id="tabs">
+      <button class="chip active" data-tab="users">Users</button>
+      <button class="chip" data-tab="products">Products</button>
+      <button class="chip" data-tab="orders">Orders</button>
+      <button class="chip" data-tab="reviews">Reviews</button>
+    </div>
+
+    <div id="tab-users" class="section">
+      <div class="section-head">
+        <h2 style="font-size:18px;">All users</h2>
+        <div class="chips" id="role-filter">
+          <button class="chip active" data-role="">All</button>
+          <button class="chip" data-role="BUYER">Buyers</button>
+          <button class="chip" data-role="SELLER">Sellers</button>
+          <button class="chip" data-role="ADMIN">Admins</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Email</th><th>Role</th>
+              <th>Status</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="user-rows">
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-products" class="section" style="display:none;">
+      <div class="section-head"><h2 style="font-size:18px;">All products</h2></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Product</th><th>Seller</th><th>Category</th>
+              <th>Price</th><th>Stock</th><th>Rating</th><th>Status</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="product-rows">
+            <tr><td colspan="9" style="text-align:center;color:var(--muted);">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-orders" class="section" style="display:none;">
+      <div class="section-head"><h2 style="font-size:18px;">All orders</h2></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Buyer</th><th>Status</th><th>Items</th>
+              <th>Total</th><th>Payment</th><th>Placed</th>
+            </tr>
+          </thead>
+          <tbody id="order-rows">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-reviews" class="section" style="display:none;">
+      <div class="section-head"><h2 style="font-size:18px;">All reviews</h2></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Product</th><th>User</th><th>Rating</th>
+              <th>Title</th><th>Comment</th><th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="review-rows">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("admin");
+
+const user = Auth.user();
+const panel = document.getElementById("panel");
+const denied = document.getElementById("denied");
+
+if (!user || user.role !== "ADMIN") {
+  panel.style.display = "none";
+  denied.style.display = "";
+  throw new Error("not allowed");
+}
+panel.style.display = "";
+
+const tabs = document.getElementById("tabs");
+tabs.addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  document.querySelectorAll("#tabs .chip").forEach((c) => c.classList.remove("active"));
+  chip.classList.add("active");
+  switchTab(chip.dataset.tab);
+});
+
+function switchTab(tab) {
+  ["users", "products", "orders", "reviews"].forEach((t) => {
+    document.getElementById("tab-" + t).style.display = t === tab ? "" : "none";
+  });
+  if (tab === "users") loadUsers(activeRole());
+  if (tab === "products") loadProducts();
+  if (tab === "orders") loadOrders();
+  if (tab === "reviews") loadReviews();
+}
+
+function activeRole() {
+  const chip = document.querySelector("#role-filter .chip.active");
+  return chip ? chip.dataset.role : "";
+}
+
+document.getElementById("role-filter").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  document.querySelectorAll("#role-filter .chip").forEach((c) => c.classList.remove("active"));
+  chip.classList.add("active");
+  loadUsers(chip.dataset.role);
+});
+
+function isActive(v) {
+  return v === "t" || v === true;
+}
+
+function statusSpan(active) {
+  return active
+    ? '<span class="badge">Active</span>'
+    : '<span class="badge danger-bg">Suspended</span>';
+}
+
+function loadUsers(role) {
+  const rows = document.getElementById("user-rows");
+  rows.innerHTML =
+    '<tr><td colspan="6" style="text-align:center;color:var(--muted);">Loading...</td></tr>';
+  const url = "/api/admin/users" + (role ? "?role=" + encodeURIComponent(role) : "");
+  API.get(url, true)
+    .then((users) => {
+      rows.innerHTML = users.length
+        ? users
+            .map((u) => {
+              const active = isActive(u.is_active);
+              const self = String(u.id) === String(user.id);
+              const action = self
+                ? '<span class="note">you</span>'
+                : active
+                  ? '<button type="button" class="btn tiny user-toggle" data-id="' +
+                    esc(u.id) + '" data-active="false" style="background:#fee2e2;color:#991b1b;">Suspend</button>'
+                  : '<button type="button" class="btn tiny user-toggle" data-id="' +
+                    esc(u.id) + '" data-active="true" style="background:#dcfce7;color:#15803d;">Resume</button>';
+              return (
+                "<tr><td>" + esc(u.id) + "</td><td><strong>" + esc(u.name) +
+                "</strong></td><td>" + esc(u.email) + "</td><td>" +
+                '<span class="badge">' + esc(u.role) + "</span></td><td>" +
+                statusSpan(active) + "</td><td class=\"action-cell\">" + action + "</td></tr>"
+              );
+            })
+            .join("")
+        : '<tr><td colspan="6" style="text-align:center;color:var(--muted);">No users.</td></tr>';
+    })
+    .catch((err) => {
+      rows.innerHTML =
+        '<tr><td colspan="6" style="text-align:center;color:var(--danger);">' +
+        esc(err.message) + "</td></tr>";
+    });
+}
+
+function loadProducts() {
+  const rows = document.getElementById("product-rows");
+  rows.innerHTML =
+    '<tr><td colspan="9" style="text-align:center;color:var(--muted);">Loading...</td></tr>';
+  API.get("/api/admin/products", true)
+    .then((products) => {
+      rows.innerHTML = products.length
+        ? products
+            .map((p) => {
+              const active = isActive(p.is_active);
+              return (
+                "<tr><td>" + esc(p.id) + "</td><td><strong>" + esc(p.name) +
+                "</strong></td><td>" + esc(p.seller_name) + "</td><td>" +
+                esc(p.category) + "</td><td>" + money(p.price) + "</td><td>" +
+                esc(p.stock) + "</td><td>" + starsHtml(p.rating, p.rating_count) +
+                "</td><td>" +
+                (active
+                  ? '<span class="badge">Active</span>'
+                  : '<span class="badge danger-bg">Inactive</span>') +
+                "</td><td class=\"action-cell\">" +
+                '<button type="button" class="btn tiny prod-toggle" data-id="' + esc(p.id) +
+                '" data-active="' + (active ? "false" : "true") + '">' +
+                (active ? "Deactivate" : "Activate") + "</button></td></tr>"
+              );
+            })
+            .join("")
+        : '<tr><td colspan="9" style="text-align:center;color:var(--muted);">No products.</td></tr>';
+    })
+    .catch((err) => {
+      rows.innerHTML =
+        '<tr><td colspan="9" style="text-align:center;color:var(--danger);">' +
+        esc(err.message) + "</td></tr>";
+    });
+}
+
+function loadOrders() {
+  const rows = document.getElementById("order-rows");
+  rows.innerHTML =
+    '<tr><td colspan="7" style="text-align:center;color:var(--muted);">Loading...</td></tr>';
+  API.get("/api/admin/orders", true)
+    .then((orders) => {
+      rows.innerHTML = orders.length
+        ? orders
+            .map(
+              (o) =>
+                "<tr><td>" + esc(o.id) + "</td><td><strong>" + esc(o.buyer_name) +
+                "</strong><br><small>#" + esc(o.buyer_id) + "</small></td><td>" +
+                '<span class="status ' + esc(o.status) + '">' + esc(o.status) +
+                "</span></td><td>" + esc(o.item_count) + "</td><td>" +
+                money(o.total) + "</td><td>" + esc(o.payment_method) + "</td><td>" +
+                esc(o.created_at) + "</td></tr>"
+            )
+            .join("")
+        : '<tr><td colspan="7" style="text-align:center;color:var(--muted);">No orders.</td></tr>';
+    })
+    .catch((err) => {
+      rows.innerHTML =
+        '<tr><td colspan="7" style="text-align:center;color:var(--danger);">' +
+        esc(err.message) + "</td></tr>";
+    });
+}
+
+function starStr(rating) {
+  const n = Math.max(0, Math.min(5, Math.round(parseFloat(rating) || 0)));
+  let s = "";
+  for (let i = 0; i < 5; i++) {
+    s += i < n ? "\u2605" : '<span class="empty">\u2605</span>';
+  }
+  return s;
+}
+
+function loadReviews() {
+  const rows = document.getElementById("review-rows");
+  rows.innerHTML =
+    '<tr><td colspan="7" style="text-align:center;color:var(--muted);">Loading...</td></tr>';
+  API.get("/api/admin/reviews", true)
+    .then((reviews) => {
+      rows.innerHTML = reviews.length
+        ? reviews
+            .map(
+              (r) =>
+                "<tr><td>" + esc(r.id) + "</td><td><strong>" + esc(r.product_name) +
+                "</strong><br><small>#" + esc(r.product_id) + "</small></td><td>" +
+                esc(r.user_name) + "</td><td>" + starStr(r.rating) + "</td><td>" +
+                esc(r.title) + "</td><td>" + esc(r.comment) + "</td><td>" +
+                esc(r.created_at) + "</td></tr>"
+            )
+            .join("")
+        : '<tr><td colspan="7" style="text-align:center;color:var(--muted);">No reviews.</td></tr>';
+    })
+    .catch((err) => {
+      rows.innerHTML =
+        '<tr><td colspan="7" style="text-align:center;color:var(--danger);">' +
+        esc(err.message) + "</td></tr>";
+    });
+}
+
+document.addEventListener("click", async (e) => {
+  const ut = e.target.closest(".user-toggle");
+  if (ut) {
+    const id = ut.dataset.id;
+    const active = ut.dataset.active === "true";
+    try {
+      await API.put(
+        "/api/admin/users/" + encodeURIComponent(id) + "/status",
+        { active: active },
+        true
+      );
+      toast(active ? "User resumed" : "User suspended");
+      loadUsers(activeRole());
+    } catch (err) {
+      toast(err.message, true);
+    }
+    return;
+  }
+  const pt = e.target.closest(".prod-toggle");
+  if (pt) {
+    const id = pt.dataset.id;
+    const active = pt.dataset.active === "true";
+    try {
+      await API.put(
+        "/api/admin/products/" + encodeURIComponent(id) + "/active",
+        { active: active },
+        true
+      );
+      toast(active ? "Product activated" : "Product deactivated");
+      loadProducts();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+});
+
+loadUsers(activeRole());
+loadProducts();
+</script>
+</body>
+</html>

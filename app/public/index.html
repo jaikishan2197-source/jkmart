@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JK Mart - Fresh Groceries &amp; More</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <section class="hero">
+    <h1>Fresh groceries, delivered from JK Mart</h1>
+    <p>Shop local produce, packaged goods and essentials - all in one place.</p>
+    <form class="hero-search" action="products.html" method="get">
+      <input type="text" name="q" placeholder="Search for fruits, snacks, essentials...">
+      <button type="submit">Search</button>
+    </form>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>Categories</h2>
+      <a class="link" href="products.html">View all</a>
+    </div>
+    <div class="chips" id="category-chips">
+      <a class="chip" href="products.html">All</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>Featured products</h2>
+      <a class="link" href="products.html?sort=featured">View all</a>
+    </div>
+    <div class="grid" id="featured-grid"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>Latest arrivals</h2>
+      <a class="link" href="products.html?sort=latest">View all</a>
+    </div>
+    <div class="grid" id="latest-grid"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart. All rights reserved.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal">
+    <h2 id="confirm-title">Confirm</h2>
+    <p id="confirm-message"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("home");
+
+const featuredGrid = document.getElementById("featured-grid");
+const latestGrid = document.getElementById("latest-grid");
+
+featuredGrid.innerHTML = skeletonCards(8);
+latestGrid.innerHTML = skeletonCards(4);
+
+API.get("/api/categories")
+  .then((cats) => {
+    const wrap = document.getElementById("category-chips");
+    if (cats && cats.length) {
+      cats.forEach((c) => {
+        const a = document.createElement("a");
+        a.className = "chip";
+        a.href = "products.html?category=" + encodeURIComponent(c);
+        a.textContent = c;
+        wrap.appendChild(a);
+      });
+    }
+  })
+  .catch(() => {});
+
+API.get("/api/products?sort=featured&limit=8")
+  .then((products) => renderGrid(featuredGrid, products))
+  .catch(() => {
+    featuredGrid.innerHTML = '<div class="empty"><h3>Could not load products</h3><p>Is the backend running?</p></div>';
+  });
+
+API.get("/api/products?sort=latest&limit=8")
+  .then((products) => renderGrid(latestGrid, products))
+  .catch(() => {
+    latestGrid.innerHTML = '<div class="empty"><h3>Could not load products</h3></div>';
+  });
+</script>
+</body>
+</html>

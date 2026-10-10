@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Cart - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="page-head">
+    <h1>Your Cart</h1>
+  </div>
+
+  <div id="empty" class="empty" style="display:none;">
+    <h3>Your cart is empty</h3>
+    <p>Browse the marketplace and add some products.</p>
+    <p><a class="btn" href="products.html">Browse products</a></p>
+  </div>
+
+  <div id="cart-view" style="display:none;">
+    <div class="cart-grid">
+      <div>
+        <div id="cart-items"></div>
+      </div>
+      <aside class="summary" id="summary">
+        <h3>Order summary</h3>
+        <div class="sum-row"><span>Items</span><span id="sum-count">0</span></div>
+        <div class="sum-row"><span>Subtotal</span><span id="sum-subtotal">₹0</span></div>
+        <div class="sum-row big"><span>Total</span><span id="sum-total">₹0</span></div>
+        <p class="note">Order total is calculated by the server using current prices.</p>
+        <a class="btn block" href="checkout.html">Proceed to Checkout</a>
+        <button class="btn ghost block" id="clear-cart">Clear cart</button>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal">
+    <h2 id="confirm-title">Confirm</h2>
+    <p id="confirm-message"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("cart");
+
+if (!Auth.isLoggedIn()) {
+  window.location.href = "login.html?next=/cart.html";
+}
+
+const itemsEl = document.getElementById("cart-items");
+const emptyEl = document.getElementById("empty");
+const viewEl = document.getElementById("cart-view");
+
+function renderCart(cart) {
+  if (!cart || !cart.items || cart.items.length === 0) {
+    emptyEl.style.display = "";
+    viewEl.style.display = "none";
+    refreshCartCount();
+    return;
+  }
+  emptyEl.style.display = "none";
+  viewEl.style.display = "";
+  itemsEl.innerHTML =
+    '<div class="table-wrap"><table class="table">' +
+    "<thead><tr><th>Product</th><th>Price</th><th>Quantity</th><th>Total</th><th></th></tr></thead><tbody>" +
+    cart.items
+      .map(function (it) {
+        return (
+          "<tr>" +
+          '<td><a class="prod-cell" href="product.html?id=' + encodeURIComponent(it.product_id) + '">' +
+          '<span class="cell-thumb">' + imageHtml(it.image_url, it.name) + "</span>" +
+          "<span>" + esc(it.name) + "</span></a></td>" +
+          "<td>" + money(it.price) + "</td>" +
+          '<td><div class="qty-control">' +
+          '<button class="btn ghost small qty-minus" data-id="' + esc(it.product_id) + '">\u2212</button>' +
+          "<span>" + esc(it.quantity) + "</span>" +
+          '<button class="btn ghost small qty-plus" data-id="' + esc(it.product_id) + '">+</button>' +
+          "</div></td>" +
+          "<td>" + money(it.line_total) + "</td>" +
+          '<td><button class="btn ghost small danger-text item-remove" data-id="' + esc(it.product_id) + '">Remove</button></td>' +
+          "</tr>"
+        );
+      })
+      .join("") +
+    "</tbody></table></div>";
+  document.getElementById("sum-count").textContent = cart.count;
+  document.getElementById("sum-subtotal").textContent = money(cart.subtotal);
+  document.getElementById("sum-total").textContent = money(cart.total);
+  refreshCartCount();
+}
+
+function load() {
+  API.get("/api/cart", true)
+    .then(renderCart)
+    .catch((err) => {
+      if (err.status === 401) {
+        window.location.href = "login.html?next=/cart.html";
+        return;
+      }
+      itemsEl.innerHTML =
+        '<div class="empty"><h3>Could not load cart</h3><p>' + esc(err.message) + "</p></div>";
+    });
+}
+
+itemsEl.addEventListener("click", async (e) => {
+  const minus = e.target.closest(".qty-minus");
+  const plus = e.target.closest(".qty-plus");
+  const remove = e.target.closest(".item-remove");
+  if (minus || plus) {
+    e.preventDefault();
+    const id = (minus || plus).dataset.id;
+    const row = (minus || plus).closest("tr");
+    const cur = parseInt(row.querySelector(".qty-control span").textContent, 10);
+    const next = minus ? cur - 1 : cur + 1;
+    if (next < 1) return;
+    try {
+      const cart = await API.put("/api/cart/" + encodeURIComponent(id), { quantity: next }, true);
+      renderCart(cart);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+  if (remove) {
+    e.preventDefault();
+    try {
+      const cart = await API.del("/api/cart/" + encodeURIComponent(remove.dataset.id), true);
+      renderCart(cart);
+      toast("Item removed from cart");
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+});
+
+document.getElementById("clear-cart").addEventListener("click", async () => {
+  const ok = await confirmDialog({
+    title: "Clear cart",
+    message: "Remove all items from your cart?",
+    confirmText: "Clear cart",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const cart = await API.del("/api/cart", true);
+    renderCart(cart);
+    toast("Cart cleared");
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+load();
+</script>
+</body>
+</html>

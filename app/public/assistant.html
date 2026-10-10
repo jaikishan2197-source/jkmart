@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JK Mart - Shopping Assistant</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="page-head">
+    <h1>Shopping Assistant</h1>
+    <p class="sub">Ask about products, prices, stock, delivery and more. Backed by the live JK Mart catalog.</p>
+  </div>
+
+  <section class="card chat-card">
+    <div class="chat-log" id="chat-log">
+      <div class="msg bot">
+        <div class="bubble">
+          Hi! I'm the JK Mart assistant. I can answer questions about our
+          current products and how ordering works. For example:
+          <div class="suggestions" id="suggestions">
+            <button class="chip small" data-q="Show me products under ₹500">Products under ₹500</button>
+            <button class="chip small" data-q="Recommend something">Recommend something</button>
+            <button class="chip small" data-q="What is in the Snacks category?">Snacks category</button>
+            <button class="chip small" data-q="When will my order arrive?">Delivery time</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input">
+      <input type="text" id="chat-text" maxlength="500" placeholder="Ask the JK Mart assistant...">
+      <button class="btn" id="chat-send">Ask</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart. All rights reserved.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal">
+    <h2 id="confirm-title">Confirm</h2>
+    <p id="confirm-message"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("assistant");
+
+const log = document.getElementById("chat-log");
+const input = document.getElementById("chat-text");
+const sendBtn = document.getElementById("chat-send");
+
+function addMsg(text, who) {
+  const div = document.createElement("div");
+  div.className = "msg " + who;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  div.appendChild(bubble);
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function sourceBadge(source) {
+  const labels = { local: "answers from JK Mart data", provider: "AI provider", fallback: "temporary fallback" };
+  return labels[source] || "JK Mart assistant";
+}
+
+async function ask(text) {
+  if (!text.trim()) return;
+  addMsg(text, "user");
+  input.value = "";
+  sendBtn.disabled = true;
+  sendBtn.textContent = "...";
+  try {
+    const res = await API.post("/api/assistant/ask", { message: text });
+    addMsg(res.answer + "\n\n\u2014 " + sourceBadge(res.source), "bot");
+  } catch (err) {
+    if (err.status === 429) {
+      addMsg("Too many requests - please wait a moment and try again.", "bot");
+    } else {
+      addMsg("Sorry, the assistant could not answer right now. Please try again shortly.", "bot");
+    }
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Ask";
+    input.focus();
+  }
+}
+
+sendBtn.addEventListener("click", function () {
+  ask(input.value);
+});
+
+input.addEventListener("keydown", function (e) {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    ask(input.value);
+  }
+});
+
+document.getElementById("suggestions").addEventListener("click", function (e) {
+  const chip = e.target.closest(".chip");
+  if (chip && chip.dataset.q) ask(chip.dataset.q);
+});
+</script>
+</body>
+</html>

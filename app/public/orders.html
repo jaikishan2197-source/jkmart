@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="page-head">
+    <h1 id="page-title">Your Orders</h1>
+  </div>
+
+  <div id="empty" class="empty" style="display:none;">
+    <h3>No orders yet</h3>
+    <p>When you place an order it will show up here.</p>
+    <p><a class="btn" href="products.html">Browse products</a></p>
+  </div>
+
+  <div id="orders-view" style="display:none;">
+    <div class="table-wrap"><table class="table">
+      <thead><tr>
+        <th>Order</th><th>Date</th><th>Status</th><th>Items</th><th>Total</th><th></th>
+      </tr></thead>
+      <tbody id="orders-body"></tbody>
+    </table></div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("orders");
+
+if (!Auth.isLoggedIn()) {
+  window.location.href = "login.html?next=/orders.html";
+}
+
+const user = Auth.user();
+const isSellerView = user && (user.role === "SELLER" || user.role === "ADMIN");
+const emptyEl = document.getElementById("empty");
+const viewEl = document.getElementById("orders-view");
+const bodyTb = document.getElementById("orders-body");
+
+function statusBadge(s) {
+  return '<span class="status ' + esc(s) + '">' + esc(s) + "</span>";
+}
+
+function load() {
+  const path = isSellerView ? "/api/seller/orders" : "/api/orders";
+  API.get(path, true)
+    .then((orders) => {
+      document.getElementById("page-title").textContent = isSellerView
+        ? "Orders for your store"
+        : "Your Orders";
+      if (!orders || orders.length === 0) {
+        emptyEl.style.display = "";
+        viewEl.style.display = "none";
+        return;
+      }
+      emptyEl.style.display = "none";
+      viewEl.style.display = "";
+      bodyTb.innerHTML = orders
+        .map(function (o) {
+          return (
+            "<tr>" +
+            "<td>#" + esc(o.id) + "</td>" +
+            "<td>" + esc(o.created_at) + "</td>" +
+            "<td>" + statusBadge(o.status) + "</td>" +
+            "<td>" + esc(o.item_count || "-") + "</td>" +
+            "<td>" + money(o.total) + "</td>" +
+            '<td><a class="btn small outline" href="order.html?id=' + encodeURIComponent(o.id) + '">View</a></td>' +
+            "</tr>"
+          );
+        })
+        .join("");
+    })
+    .catch((err) => {
+      if (err.status === 401) {
+        window.location.href = "login.html?next=/orders.html";
+        return;
+      }
+      bodyTb.innerHTML =
+        '<tr><td colspan="6">Could not load orders: ' + esc(err.message) + "</td></tr>";
+    });
+}
+
+load();
+</script>
+</body>
+</html>

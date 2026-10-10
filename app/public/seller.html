@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seller Dashboard - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div id="denied" class="empty" style="display:none;">
+    <h3>Access denied</h3>
+    <p>This area requires a seller account.</p>
+    <p><a class="btn" href="login.html">Log in as seller</a></p>
+  </div>
+
+  <div id="panel" style="display:none;">
+    <div class="page-head">
+      <h1>Seller Dashboard</h1>
+      <button class="btn accent" id="add-btn">+ Add product</button>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat"><div class="num" id="st-total">-</div><div class="lbl">Total products</div></div>
+      <div class="stat"><div class="num" id="st-active">-</div><div class="lbl">Active</div></div>
+      <div class="stat"><div class="num" id="st-inactive">-</div><div class="lbl">Inactive</div></div>
+      <div class="stat"><div class="num" id="st-out">-</div><div class="lbl">Out of stock</div></div>
+      <div class="stat"><div class="num" id="st-stock">-</div><div class="lbl">Total stock</div></div>
+    </div>
+
+    <div class="section-head">
+      <h2 style="font-size:18px;">My products</h2>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Product</th><th>Category</th><th>Price</th>
+            <th>Stock</th><th>Status</th><th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="product-rows"></tbody>
+      </table>
+    </div>
+    <div id="empty-products" class="empty" style="display:none;">
+      <h3>No products yet</h3>
+      <p>Add your first product to start selling.</p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<!-- Product form modal -->
+<div class="modal-backdrop" id="product-modal">
+  <div class="modal">
+    <h2 id="pm-title">Add product</h2>
+    <form id="product-form" novalidate>
+      <div class="field">
+        <label for="pf-name">Name *</label>
+        <input type="text" id="pf-name" required>
+      </div>
+      <div class="field">
+        <label for="pf-category">Category *</label>
+        <input type="text" id="pf-category" placeholder="e.g. Fruits, Snacks" required>
+      </div>
+      <div class="field">
+        <label for="pf-price">Price (USD) *</label>
+        <input type="text" id="pf-price" placeholder="0.00" required>
+      </div>
+      <div class="field">
+        <label for="pf-stock">Stock *</label>
+        <input type="number" id="pf-stock" min="0" value="0" required>
+      </div>
+      <div class="field">
+        <label for="pf-image">Image URL (optional)</label>
+        <input type="text" id="pf-image" placeholder="https://...">
+      </div>
+      <div class="field">
+        <label for="pf-desc">Description</label>
+        <textarea id="pf-desc" rows="4"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="pm-cancel">Cancel</button>
+        <button type="submit" class="btn" id="pm-save">Save product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal">
+    <h2 id="confirm-title">Confirm</h2>
+    <p id="confirm-message"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("seller");
+
+const user = Auth.user();
+const panel = document.getElementById("panel");
+const denied = document.getElementById("denied");
+const rowsEl = document.getElementById("product-rows");
+const emptyEl = document.getElementById("empty-products");
+
+if (!user || (user.role !== "SELLER" && user.role !== "ADMIN")) {
+  panel.style.display = "none";
+  denied.style.display = "";
+  throw new Error("not allowed");
+}
+panel.style.display = "";
+
+let editingId = null;
+let productsCache = [];
+const form = document.getElementById("product-form");
+const pmTitle = document.getElementById("pm-title");
+const pmSave = document.getElementById("pm-save");
+
+function openModal(product) {
+  editingId = product ? product.id : null;
+  pmTitle.textContent = product ? "Edit product" : "Add product";
+  document.getElementById("pf-name").value = product ? product.name : "";
+  document.getElementById("pf-category").value = product ? product.category : "";
+  document.getElementById("pf-price").value = product ? product.price : "";
+  document.getElementById("pf-stock").value = product ? product.stock : "0";
+  document.getElementById("pf-image").value = product ? product.image_url : "";
+  document.getElementById("pf-desc").value = product ? product.description : "";
+  document.getElementById("product-modal").classList.add("show");
+  pmSave.textContent = product ? "Save changes" : "Save product";
+}
+
+function closeModal() {
+  document.getElementById("product-modal").classList.remove("show");
+}
+
+document.getElementById("add-btn").addEventListener("click", () => openModal(null));
+document.getElementById("pm-cancel").addEventListener("click", closeModal);
+document.getElementById("product-modal").addEventListener("click", (e) => {
+  if (e.target.id === "product-modal") closeModal();
+});
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const payload = {
+    name: document.getElementById("pf-name").value.trim(),
+    category: document.getElementById("pf-category").value.trim(),
+    price: document.getElementById("pf-price").value.trim(),
+    stock: document.getElementById("pf-stock").value,
+    image_url: document.getElementById("pf-image").value.trim(),
+    description: document.getElementById("pf-desc").value,
+  };
+  if (!payload.name) return toast("Name is required.", true);
+  if (!payload.category) return toast("Category is required.", true);
+
+  pmSave.disabled = true;
+  pmSave.textContent = "Saving...";
+  try {
+    if (editingId) {
+      await API.put("/api/seller/products/" + encodeURIComponent(editingId), payload, true);
+      toast("Product updated.");
+    } else {
+      await API.post("/api/seller/products", payload, true);
+      toast("Product added.");
+    }
+    closeModal();
+    load();
+  } catch (err) {
+    toast(err.message, true);
+  }
+  pmSave.disabled = false;
+  pmSave.textContent = editingId ? "Save changes" : "Save product";
+});
+
+function rowHtml(p) {
+  const active = p.is_active === "t" || p.is_active === true;
+  return (
+    "<tr>" +
+    "<td><strong>" + esc(p.name) + "</strong></td>" +
+    "<td>" + esc(p.category) + "</td>" +
+    "<td>" + money(p.price) + "</td>" +
+    "<td>" + esc(p.stock) + "</td>" +
+    "<td>" +
+    (active ? '<span class="badge">Active</span>' : '<span class="badge danger-bg">Inactive</span>') +
+    "</td>" +
+    '<td style="text-align:right;white-space:nowrap;">' +
+    '<button class="btn small ghost" data-edit="' + esc(p.id) + '">Edit</button> ' +
+    (active
+      ? '<button class="btn small danger" data-deact="' + esc(p.id) + '">Deactivate</button>'
+      : '<button class="btn small outline" data-react="' + esc(p.id) + '">Activate</button>') +
+    "</td>" +
+    "</tr>"
+  );
+}
+
+function setStat(id, value) {
+  document.getElementById(id).textContent = value;
+}
+
+function load() {
+  rowsEl.innerHTML =
+    '<tr><td colspan="6" style="text-align:center;color:var(--muted);">Loading...</td></tr>';
+  API.get("/api/seller/products", true)
+    .then((data) => {
+      productsCache = data.products || [];
+      const products = productsCache;
+      const stats = data.stats || {};
+      rowsEl.innerHTML = products.length ? products.map(rowHtml).join("") : "";
+      emptyEl.style.display = products.length ? "none" : "";
+      setStat("st-total", stats.total || 0);
+      setStat("st-active", stats.active || 0);
+      setStat("st-inactive", stats.inactive || 0);
+      setStat("st-out", stats.out_of_stock || 0);
+      setStat("st-stock", stats.total_stock || 0);
+    })
+    .catch((err) => {
+      rowsEl.innerHTML =
+        '<tr><td colspan="6" style="text-align:center;color:var(--danger);">' +
+        esc(err.message) + "</td></tr>";
+    });
+}
+
+rowsEl.addEventListener("click", async (e) => {
+  const editBtn = e.target.closest("[data-edit]");
+  const deactBtn = e.target.closest("[data-deact]");
+  const reactBtn = e.target.closest("[data-react]");
+
+  if (editBtn) {
+    const found = productsCache.find((p) => String(p.id) === editBtn.dataset.edit);
+    if (found) openModal(found);
+    return;
+  }
+  if (deactBtn) {
+    const id = deactBtn.dataset.deact;
+    const ok = await confirmDialog({
+      title: "Deactivate product",
+      message: "This will hide the product from the storefront. Continue?",
+      confirmText: "Deactivate",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await API.del("/api/seller/products/" + encodeURIComponent(id), true);
+      toast("Product deactivated.");
+      load();
+    } catch (err) {
+      toast(err.message, true);
+    }
+    return;
+  }
+  if (reactBtn) {
+    const id = reactBtn.dataset.react;
+    const found = productsCache.find((p) => String(p.id) === id);
+    if (!found) return;
+    try {
+      await API.put("/api/seller/products/" + encodeURIComponent(id), {
+        name: found.name,
+        category: found.category,
+        price: found.price,
+        stock: found.stock,
+        image_url: found.image_url,
+        description: found.description,
+        is_active: true,
+      }, true);
+      toast("Product activated.");
+      load();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+});
+
+load();
+</script>
+</body>
+</html>

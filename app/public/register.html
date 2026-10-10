@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="card form-card">
+    <h1>Create your account</h1>
+    <p class="sub">Join JK Mart as a buyer or seller.</p>
+    <div class="alert" id="alert"></div>
+    <form id="register-form" novalidate>
+      <div class="field">
+        <label for="name">Full name</label>
+        <input type="text" id="name" name="name" placeholder="Your name" required>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="At least 6 characters" required>
+      </div>
+      <div class="field">
+        <label for="confirm">Confirm password</label>
+        <input type="password" id="confirm" name="confirm" placeholder="Repeat password" required>
+      </div>
+      <div class="field">
+        <label for="role">I am registering as</label>
+        <select id="role" name="role">
+          <option value="BUYER">Buyer - I want to shop</option>
+          <option value="SELLER">Seller - I want to sell products</option>
+        </select>
+      </div>
+      <button type="submit" class="btn block" id="submit-btn">Create account</button>
+    </form>
+    <p style="margin-top:18px;font-size:14px;text-align:center;color:var(--muted);">
+      Already have an account? <a href="login.html">Log in</a>
+    </p>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("register");
+
+const form = document.getElementById("register-form");
+const alertEl = document.getElementById("alert");
+const submitBtn = document.getElementById("submit-btn");
+
+function showAlert(msg, kind) {
+  alertEl.className = "alert show " + kind;
+  alertEl.textContent = msg;
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  alertEl.className = "alert";
+
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const confirm = document.getElementById("confirm").value;
+  const role = document.getElementById("role").value;
+
+  if (!name.trim()) return showAlert("Name is required.", "error");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return showAlert("Enter a valid email address.", "error");
+  if (password.length < 6) return showAlert("Password must be at least 6 characters.", "error");
+  if (password !== confirm) return showAlert("Passwords do not match.", "error");
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Creating account...";
+  try {
+    const data = await API.post("/api/auth/register", {
+      name,
+      email,
+      password,
+      role,
+    });
+    Auth.set(data);
+    const user = Auth.user();
+    showAlert("Account created successfully.", "success");
+    setTimeout(() => {
+      window.location.href =
+        user && user.role === "SELLER" ? "seller.html" : "index.html";
+    }, 900);
+  } catch (err) {
+    showAlert(err.message, "error");
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Create account";
+  }
+});
+</script>
+</body>
+</html>

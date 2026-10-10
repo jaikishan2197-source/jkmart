@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="card form-card">
+    <h1>Welcome back</h1>
+    <p class="sub">Log in to continue shopping.</p>
+    <div class="alert" id="alert"></div>
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Your password" required>
+      </div>
+      <button type="submit" class="btn block" id="submit-btn">Log in</button>
+    </form>
+    <p style="margin-top:18px;font-size:14px;text-align:center;color:var(--muted);">
+      New here? <a href="register.html">Create an account</a>
+    </p>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("login");
+
+const form = document.getElementById("login-form");
+const alertEl = document.getElementById("alert");
+const submitBtn = document.getElementById("submit-btn");
+
+function showAlert(msg, kind) {
+  alertEl.className = "alert show " + kind;
+  alertEl.textContent = msg;
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  alertEl.className = "alert";
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (!email || !password) {
+    showAlert("Email and password are required.", "error");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Logging in...";
+  try {
+    const data = await API.post("/api/auth/login", { email, password });
+    Auth.set(data);
+    const user = Auth.user();
+    const next = new URLSearchParams(location.search).get("next");
+    const dest =
+      next && next.startsWith("/") ? next :
+      user && user.role === "ADMIN" ? "admin.html" :
+      user && user.role === "SELLER" ? "seller.html" : "index.html";
+    window.location.href = dest;
+  } catch (err) {
+    showAlert(err.message, "error");
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Log in";
+  }
+});
+</script>
+</body>
+</html>

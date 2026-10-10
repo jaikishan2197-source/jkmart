@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div id="not-found" class="empty" style="display:none;">
+    <h3>Order not found</h3>
+    <p>This order does not exist or you do not have access to it.</p>
+    <p><a class="btn" href="orders.html">Back to orders</a></p>
+  </div>
+
+  <div id="detail" style="display:none;"></div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("orders");
+
+if (!Auth.isLoggedIn()) {
+  window.location.href = "login.html?next=/orders.html";
+}
+
+const params = new URLSearchParams(location.search);
+const id = params.get("id");
+const user = Auth.user();
+const canUpdate = user && (user.role === "SELLER" || user.role === "ADMIN");
+
+const detailEl = document.getElementById("detail");
+const notFoundEl = document.getElementById("not-found");
+
+function statusBadge(s) {
+  return '<span class="status ' + esc(s) + '">' + esc(s) + "</span>";
+}
+
+function load() {
+  API.get("/api/orders/" + encodeURIComponent(id), true)
+    .then((o) => {
+      detailEl.innerHTML =
+        '<div class="order-hero">' +
+        '<div><h1>Order #' + esc(o.id) + "</h1>" +
+        '<p class="meta">' + statusBadge(o.status) + " &sdot; " +
+        esc(o.created_at) + " &sdot; Payment: " + esc(o.payment_method) + "</p>" +
+        '<p class="meta">Buyer: ' + esc(o.buyer_name) + "</p></div>" +
+        '<div class="order-total">' +
+        '<span class="meta">Order total</span>' +
+        '<div class="price">' + money(o.total) + "</div>" +
+        (canUpdate
+          ? '<div class="qty-row" style="margin-top:12px;">' +
+            '<label for="status">Update status</label>' +
+            '<select id="status">' +
+            ["PLACED", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"]
+              .map(function (s) {
+                return '<option value="' + s + '"' + (s === o.status ? " selected" : "") + ">" + s + "</option>";
+              })
+              .join("") +
+            "</select>" +
+            '<button class="btn" id="update-status">Update</button>' +
+            "</div>"
+          : "") +
+        "</div></div>" +
+        '<div class="table-wrap"><table class="table">' +
+        "<thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Total</th></tr></thead><tbody>" +
+        (o.items || [])
+          .map(function (it) {
+            var line = (parseFloat(it.price) || 0) * (parseInt(it.quantity, 10) || 0);
+            return (
+              "<tr>" +
+              '<td><a href="product.html?id=' + encodeURIComponent(it.product_id) + '">' + esc(it.name) + "</a></td>" +
+              "<td>" + money(it.price) + "</td>" +
+              "<td>" + esc(it.quantity) + "</td>" +
+              "<td>" + money(line.toFixed(2)) + "</td>" +
+              "</tr>"
+            );
+          })
+          .join("") +
+        "</tbody></table></div>" +
+        '<div class="section" style="margin-top:16px;">' +
+        '<a class="btn outline" href="orders.html">Back to orders</a></div>';
+      detailEl.style.display = "";
+
+      const up = document.getElementById("update-status");
+      if (up) {
+        up.addEventListener("click", async () => {
+          const sel = document.getElementById("status");
+          up.disabled = true;
+          try {
+            await API.put("/api/orders/" + encodeURIComponent(id) + "/status", { status: sel.value }, true);
+            toast("Order status updated to " + sel.value);
+            load();
+          } catch (err) {
+            up.disabled = false;
+            toast(err.message, true);
+          }
+        });
+      }
+    })
+    .catch((err) => {
+      detailEl.style.display = "none";
+      notFoundEl.style.display = "";
+    });
+}
+
+load();
+</script>
+</body>
+</html>

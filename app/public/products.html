@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Products - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="page-head">
+    <h1>Products</h1>
+    <div class="field" style="margin:0;min-width:180px;">
+      <select id="sort-select">
+        <option value="featured">Sort: Featured</option>
+        <option value="latest">Sort: Latest</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2 style="font-size:16px;">Category</h2>
+  </div>
+  <div class="chips" id="category-chips">
+    <button class="chip active" data-cat="">All</button>
+  </div>
+
+  <div class="section" style="margin-top:20px;">
+    <div class="grid" id="product-grid"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("products");
+
+const grid = document.getElementById("product-grid");
+const params = new URLSearchParams(location.search);
+let q = params.get("q") || "";
+let category = params.get("category") || "";
+let sort = params.get("sort") || "featured";
+
+const sortSelect = document.getElementById("sort-select");
+sortSelect.value = sort;
+
+grid.innerHTML = skeletonCards(8);
+
+function load() {
+  grid.innerHTML = skeletonCards(8);
+  const qs = new URLSearchParams();
+  if (q) qs.set("q", q);
+  if (category) qs.set("category", category);
+  qs.set("sort", sort);
+  API.get("/api/products?" + qs.toString())
+    .then((products) => renderGrid(grid, products))
+    .catch((err) => {
+      grid.innerHTML =
+        '<div class="empty"><h3>Could not load products</h3><p>' +
+        esc(err.message) + "</p></div>";
+    });
+}
+
+document.getElementById("category-chips").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  category = chip.dataset.cat || "";
+  document.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
+  chip.classList.add("active");
+  load();
+});
+
+sortSelect.addEventListener("change", () => {
+  sort = sortSelect.value;
+  load();
+});
+
+API.get("/api/categories")
+  .then((cats) => {
+    const wrap = document.getElementById("category-chips");
+    cats.forEach((c) => {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.dataset.cat = c;
+      b.textContent = c;
+      if (c === category) {
+        b.classList.add("active");
+        document.querySelector(".chip[data-cat='']").classList.remove("active");
+      }
+      wrap.appendChild(b);
+    });
+  })
+  .catch(() => {});
+
+load();
+</script>
+</body>
+</html>

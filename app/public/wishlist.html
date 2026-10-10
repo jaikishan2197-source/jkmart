@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wishlist - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="page-head">
+    <h1>Wishlist</h1>
+  </div>
+
+  <div id="empty" class="empty" style="display:none;">
+    <h3>Your wishlist is empty</h3>
+    <p>Tap the heart on any product to save it here.</p>
+    <p><a class="btn" href="products.html">Browse products</a></p>
+  </div>
+
+  <div class="grid" id="wish-grid"></div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("wishlist");
+
+if (!Auth.isLoggedIn()) {
+  window.location.href = "login.html?next=/wishlist.html";
+}
+
+const grid = document.getElementById("wish-grid");
+const emptyEl = document.getElementById("empty");
+
+function load() {
+  API.get("/api/wishlist", true)
+    .then((res) => {
+      const items = res.wishlist || [];
+      if (items.length === 0) {
+        emptyEl.style.display = "";
+        grid.innerHTML = "";
+        return;
+      }
+      emptyEl.style.display = "none";
+      grid.innerHTML =
+        '<div class="table-wrap" style="grid-column:1/-1;"><table class="table">' +
+        "<thead><tr><th>Product</th><th>Price</th><th>Availability</th><th></th></tr></thead><tbody>" +
+        items
+          .map(function (it) {
+            const active = it.is_active === "t";
+            return (
+              "<tr>" +
+              '<td><a class="prod-cell" href="product.html?id=' + encodeURIComponent(it.product_id) + '">' +
+              '<span class="cell-thumb">' + imageHtml(it.image_url, it.name) + "</span>" +
+              "<span>" + esc(it.name) + "</span></a></td>" +
+              "<td>" + money(it.price) + "</td>" +
+              "<td>" + (active ? stockBadge(it.stock) : '<span class="badge danger-bg">Unavailable</span>') + "</td>" +
+              '<td><div class="pc-actions">' +
+              '<button class="btn small wish-move" data-id="' + esc(it.product_id) +
+              '" data-name="' + esc(it.name) + '">Add to Cart</button>' +
+              '<a class="btn small outline" href="product.html?id=' + encodeURIComponent(it.product_id) + '">View</a>' +
+              '<button class="btn ghost small wish-remove" data-id="' + esc(it.product_id) + '">Remove</button>' +
+              "</div></td>" +
+              "</tr>"
+            );
+          })
+          .join("") +
+        "</tbody></table></div>";
+    })
+    .catch((err) => {
+      if (err.status === 401) {
+        window.location.href = "login.html?next=/wishlist.html";
+        return;
+      }
+      grid.innerHTML =
+        '<div class="empty" style="grid-column:1/-1;"><h3>Could not load wishlist</h3><p>' +
+        esc(err.message) + "</p></div>";
+    });
+}
+
+grid.addEventListener("click", async (e) => {
+  const move = e.target.closest(".wish-move");
+  const remove = e.target.closest(".wish-remove");
+  if (move) {
+    e.preventDefault();
+    addToCart(move.dataset.id, 1, move);
+    return;
+  }
+  if (remove) {
+    e.preventDefault();
+    remove.disabled = true;
+    try {
+      await API.del("/api/wishlist/" + encodeURIComponent(remove.dataset.id), true);
+      toast("Removed from wishlist");
+      load();
+    } catch (err) {
+      remove.disabled = false;
+      toast(err.message, true);
+    }
+  }
+});
+
+load();
+</script>
+</body>
+</html>

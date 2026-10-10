@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Product - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div id="not-found" class="empty" style="display:none;">
+    <h3>Product not found</h3>
+    <p>This product may have been removed or is no longer available.</p>
+    <p><a class="btn" href="products.html">Back to products</a></p>
+  </div>
+
+  <div id="detail" style="display:none;"></div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("products");
+
+const params = new URLSearchParams(location.search);
+const id = params.get("id");
+
+const detailEl = document.getElementById("detail");
+const notFoundEl = document.getElementById("not-found");
+
+detailEl.innerHTML =
+  '<div class="pdetail">' +
+  '<div class="pimg skeleton"></div>' +
+  '<div></div></div>';
+
+API.get("/api/products/" + encodeURIComponent(id))
+  .then((p) => {
+    detailEl.innerHTML =
+      '<div class="pdetail">' +
+      '<div class="pimg">' + imageHtml(p.image_url, p.name, true) + "</div>" +
+      '<div>' +
+      '<span class="badge">' + esc(p.category) + "</span>" +
+      '<h1>' + esc(p.name) + "</h1>" +
+      '<div class="pc-meta" style="margin-bottom:10px;">' +
+      starsHtml(p.rating, p.rating_count) +
+      '<span>Seller: ' + esc(p.seller_name) + "</span>" +
+      "</div>" +
+      '<div class="price">' + money(p.price) + "</div>" +
+      '<div class="meta" style="margin-top:6px;">' + stockBadge(p.stock) + "</div>" +
+      '<p style="margin-top:16px;">' + esc(p.description).replace(/\n/g, "<br>") + "</p>" +
+      '<div class="qty-row">' +
+      '<label for="qty">Quantity</label>' +
+      '<input type="number" id="qty" min="1" value="1">' +
+      "</div>" +
+      '<div class="pc-actions">' +
+      '<button class="btn add-btn" id="add-btn" data-id="' + esc(p.id) + '" data-name="' + esc(p.name) + '">Add to Cart</button>' +
+      '<button class="btn outline" id="wish-btn" data-id="' + esc(p.id) + '">\u2661 Wishlist</button>' +
+      '<a class="btn ghost" href="products.html">Continue shopping</a>' +
+      "</div>" +
+      "</div>" +
+      "</div>";
+    detailEl.style.display = "";
+    checkWishlist(p.id);
+    loadReviews(p);
+  })
+  .catch((err) => {
+    detailEl.style.display = "none";
+    notFoundEl.style.display = "";
+  });
+
+detailEl.addEventListener("click", (e) => {
+  const add = e.target.closest("#add-btn");
+  if (add) {
+    e.preventDefault();
+    const qtyInput = document.getElementById("qty");
+    const qty = Math.max(1, parseInt(qtyInput && qtyInput.value, 10) || 1);
+    addToCart(add.dataset.id, qty, add);
+    return;
+  }
+  const wish = e.target.closest("#wish-btn");
+  if (wish) {
+    e.preventDefault();
+    addToWishlist(wish.dataset.id, wish);
+  }
+});
+
+function starStr(rating) {
+  const n = Math.max(0, Math.min(5, Math.round(parseFloat(rating) || 0)));
+  let s = "";
+  for (let i = 0; i < 5; i++) {
+    s += i < n ? "\u2605" : '<span class="empty">\u2605</span>';
+  }
+  return s;
+}
+
+function reviewFormHtml(pid) {
+  return (
+    '<form id="review-form" class="review-form">' +
+    '<h4>Write a review</h4>' +
+    '<label for="review-rating">Rating</label>' +
+    '<select id="review-rating" required>' +
+    '<option value="">Rate this product...</option>' +
+    '<option value="5">\u2605\u2605\u2605\u2605\u2605 Excellent</option>' +
+    '<option value="4">\u2605\u2605\u2605\u2605 Good</option>' +
+    '<option value="3">\u2605\u2605\u2605 Average</option>' +
+    '<option value="2">\u2605\u2605 Poor</option>' +
+    '<option value="1">\u2605 Bad</option>' +
+    "</select>" +
+    '<input type="text" id="review-title" placeholder="Title (optional)" maxlength="120">' +
+    '<textarea id="review-comment" rows="3" placeholder="Share your experience (optional)" maxlength="1000"></textarea>' +
+    '<button type="submit" class="btn small">Submit review</button>' +
+    "</form>"
+  );
+}
+
+function loadReviews(p) {
+  const url =
+    "/api/products/" + encodeURIComponent(p.id) + "/reviews";
+  API.get(url, Auth.isLoggedIn())
+    .then((data) => {
+      const cnt = parseInt(data.rating_count || "0", 10) || 0;
+      const list = data.reviews || [];
+      let html =
+        '<section class="reviews" id="reviews-sec">' +
+        '<div class="section-head"><h2 style="font-size:18px;">Reviews &amp; ratings</h2></div>' +
+        '<div class="pc-meta" style="margin-bottom:12px;">' +
+        starsHtml(data.average, cnt) +
+        "<span>Based on " + cnt + " review" + (cnt === 1 ? "" : "s") + "</span></div>";
+      if (list.length) {
+        html += list
+          .map(
+            (r) =>
+              '<div class="review">' +
+              '<div class="review-head"><strong>' + esc(r.user_name) + "</strong>" +
+              '<span class="stars">' + starStr(r.rating) + "</span>" +
+              "<small>" + esc(r.created_at) + "</small></div>" +
+              (r.title ? '<div class="review-title">' + esc(r.title) + "</div>" : "") +
+              (r.comment ? '<div class="review-text">' + esc(r.comment) + "</div>" : "") +
+              "</div>"
+          )
+          .join("");
+      } else {
+        html += '<p class="note">No reviews yet.</p>';
+      }
+      if (data.already_reviewed) {
+        html += '<p class="note">You have already reviewed this product. Thank you!</p>';
+      } else if (data.can_review) {
+        html += reviewFormHtml(p.id);
+      } else if (Auth.isLoggedIn()) {
+        html +=
+          '<p class="note">You can review this product after an order for it is delivered.</p>';
+      } else {
+        html +=
+          '<p class="note"><a href="login.html?next=' + encodeURIComponent(location.pathname + location.search) +
+          '">Sign in</a> to review this product after purchase.</p>';
+      }
+      html += "</section>";
+      const existing = document.getElementById("reviews-sec");
+      if (existing) {
+        existing.outerHTML = html;
+      } else {
+        detailEl.insertAdjacentHTML("beforeend", html);
+      }
+      wireReviewForm(p.id);
+    })
+    .catch(() => {});
+}
+
+function wireReviewForm(pid) {
+  const form = document.getElementById("review-form");
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const rating = document.getElementById("review-rating").value;
+    const title = document.getElementById("review-title").value.trim();
+    const comment = document.getElementById("review-comment").value.trim();
+    if (btn) btn.disabled = true;
+    API.post("/api/products/" + encodeURIComponent(pid) + "/reviews",
+      { rating: rating, title: title, comment: comment }, true)
+      .then(() => {
+        toast("Thank you for your review!");
+        loadReviews({ id: pid });
+      })
+      .catch((err) => {
+        toast(err.message, true);
+        if (btn) btn.disabled = false;
+      });
+  });
+}
+
+function checkWishlist(pid) {
+  if (!Auth.isLoggedIn()) return;
+  API.get("/api/wishlist", true)
+    .then((res) => {
+      const has = (res.wishlist || []).some(
+        (w) => String(w.product_id) === String(pid)
+      );
+      const btn = document.getElementById("wish-btn");
+      if (btn && has) {
+        btn.textContent = "\u2665 In Wishlist";
+        btn.classList.add("wished");
+        btn.disabled = true;
+      }
+    })
+    .catch(() => {});
+}
+</script>
+</body>
+</html>

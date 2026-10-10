@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout - JK Mart</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container">
+  <div class="page-head">
+    <h1>Checkout</h1>
+  </div>
+
+  <div id="empty" class="empty" style="display:none;">
+    <h3>Your cart is empty</h3>
+    <p>Add something to your cart before checking out.</p>
+    <p><a class="btn" href="products.html">Browse products</a></p>
+  </div>
+
+  <div id="checkout-view" style="display:none;">
+    <div class="cart-grid">
+      <div>
+        <div class="section-head"><h2 style="font-size:16px;">Items</h2></div>
+        <div class="table-wrap"><table class="table">
+          <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Total</th></tr></thead>
+          <tbody id="co-items"></tbody>
+        </table></div>
+      </div>
+      <aside class="summary">
+        <h3>Payment</h3>
+        <label class="pay-option">
+          <input type="radio" name="pay" value="DEMO" checked>
+          <div>
+            <strong>Demo Payment</strong>
+            <span class="note">Demo checkout only - no real card details are collected or stored.</span>
+          </div>
+        </label>
+        <p class="note" style="margin-top:10px;">
+          Prices and the order total are calculated on the server using current database prices.
+          Stock is reserved from your cart at the moment you place the order.
+        </p>
+        <div class="sum-row"><span>Subtotal</span><span id="co-subtotal">₹0</span></div>
+        <div class="sum-row big"><span>Total to pay</span><span id="co-total">₹0</span></div>
+        <button class="btn block" id="place-order">Place Order (Demo Pay)</button>
+        <a class="btn ghost block" href="cart.html">Back to cart</a>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span>&copy; 2026 JK Mart.</span>
+    <span>Backend: C++ / Drogon / PostgreSQL</span>
+  </div>
+</footer>
+
+<script src="js/api.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
+<script>
+initCommon("checkout");
+
+if (!Auth.isLoggedIn()) {
+  window.location.href = "login.html?next=/checkout.html";
+}
+
+const emptyEl = document.getElementById("empty");
+const viewEl = document.getElementById("checkout-view");
+const itemsTb = document.getElementById("co-items");
+const placeBtn = document.getElementById("place-order");
+
+function load() {
+  API.get("/api/cart", true)
+    .then((cart) => {
+      if (!cart || !cart.items || cart.items.length === 0) {
+        emptyEl.style.display = "";
+        viewEl.style.display = "none";
+        return;
+      }
+      emptyEl.style.display = "none";
+      viewEl.style.display = "";
+      itemsTb.innerHTML = cart.items
+        .map(function (it) {
+          return (
+            "<tr>" +
+            '<td><a href="product.html?id=' + encodeURIComponent(it.product_id) + '">' + esc(it.name) + "</a></td>" +
+            "<td>" + money(it.price) + "</td>" +
+            "<td>" + esc(it.quantity) + "</td>" +
+            "<td>" + money(it.line_total) + "</td>" +
+            "</tr>"
+          );
+        })
+        .join("");
+      document.getElementById("co-subtotal").textContent = money(cart.subtotal);
+      document.getElementById("co-total").textContent = money(cart.total);
+    })
+    .catch((err) => {
+      if (err.status === 401) {
+        window.location.href = "login.html?next=/checkout.html";
+        return;
+      }
+      itemsTb.innerHTML =
+        '<tr><td colspan="4">Could not load cart: ' + esc(err.message) + "</td></tr>";
+    });
+}
+
+placeBtn.addEventListener("click", async () => {
+  placeBtn.disabled = true;
+  placeBtn.textContent = "Placing order...";
+  try {
+    const order = await API.post("/api/checkout", { payment_method: "DEMO" }, true);
+    toast("Order placed \u2713 #" + order.id);
+    refreshCartCount();
+    setTimeout(function () {
+      window.location.href = "order.html?id=" + encodeURIComponent(order.id);
+    }, 500);
+  } catch (err) {
+    placeBtn.disabled = false;
+    placeBtn.textContent = "Place Order (Demo Pay)";
+    toast(err.message, true);
+  }
+});
+
+load();
+</script>
+</body>
+</html>

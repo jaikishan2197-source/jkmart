@@ -1,0 +1,36 @@
+
+# Local database and downloaded dependencies
+pgsql/
+pgdata/
+downloads/
+install/
+ninja/
+app/build/
+
+# Compiled files
+*.exe
+*.dll
+*.lib
+*.a
+*.o
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Git backup and generated build files
+.git-backup/
+build/
+
+# Downloaded dependency repositories
+src/drogon/
+src/jsoncpp/
+src/trantor/
+src/zlib-1.3.1/
+
+# Temporary files and local secrets
+*.log
+app/.testenv
+app/filesystem_test.cpp
+zlib-imports.txt
