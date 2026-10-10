@@ -12,32 +12,46 @@ Db& Db::instance() {
 
 Db::~Db() { disconnect(); }
 
+
 bool Db::connect() {
     disconnect();
-    const char* host = std::getenv("PGHOST");
-    const char* port = std::getenv("PGPORT");
-    const char* db   = std::getenv("PGDATABASE");
-    const char* user = std::getenv("PGUSER");
-    const char* pass = std::getenv("PGPASSWORD");
 
-    std::ostringstream ci;
-    ci << "host=" << (host ? host : "127.0.0.1")
-       << " port=" << (port ? port : "5432")
-       << " dbname=" << (db ? db : "jkmart")
-       << " user=" << (user ? user : "postgres")
-       << " connect_timeout=5";
-    if (pass) ci << " password=" << pass;
+    const char* databaseUrl = std::getenv("DATABASE_URL");
 
-    pg_conn* c = PQconnectdb(ci.str().c_str());
-    if (PQstatus(c) != CONNECTION_OK) {
-        lastError_ = PQerrorMessage(c);
-        PQfinish(c);
+    if (databaseUrl && *databaseUrl) {
+        conn_ = PQconnectdb(databaseUrl);
+    } else {
+        const char* host = std::getenv("PGHOST");
+        const char* port = std::getenv("PGPORT");
+        const char* db   = std::getenv("PGDATABASE");
+        const char* user = std::getenv("PGUSER");
+        const char* pass = std::getenv("PGPASSWORD");
+
+        std::ostringstream ci;
+        ci << "host=" << (host ? host : "127.0.0.1")
+           << " port=" << (port ? port : "5432")
+           << " dbname=" << (db ? db : "jkmart")
+           << " user=" << (user ? user : "postgres")
+           << " connect_timeout=5";
+
+        if (pass) ci << " password=" << pass;
+
+        conn_ = PQconnectdb(ci.str().c_str());
+    }
+
+    if (!conn_ || PQstatus(conn_) != CONNECTION_OK) {
+        lastError_ = conn_ ? PQerrorMessage(conn_) : "PostgreSQL connection failed";
+        if (conn_) {
+            PQfinish(conn_);
+            conn_ = nullptr;
+        }
         return false;
     }
-    conn_ = c;
+
     lastError_.clear();
     return true;
 }
+
 
 void Db::disconnect() {
     if (conn_) {

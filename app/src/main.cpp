@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <string>
 #include <drogon/drogon.h>
 
 #include "Auth.h"
@@ -49,7 +51,7 @@ int main() {
         "  name TEXT NOT NULL,"
         "  email TEXT NOT NULL UNIQUE,"
         "  password_hash TEXT NOT NULL,"
-        "  role TEXT NOT NULL DEFAULT 'BUYER'"
+        "  role TEXT NOT NULL DEFAULT 'BUYER',"
         "  CHECK (role IN ('BUYER','SELLER','ADMIN')),"
         "  is_active BOOLEAN NOT NULL DEFAULT TRUE"
         ")");
@@ -322,8 +324,10 @@ int main() {
         },
         {Get});
 
-    app().addListener("0.0.0.0", 8080);
-    app().setDocumentRoot("C:/Users/Home/Desktop/jkmart/jkmart/app/public");
+    const char* portEnv = std::getenv("PORT");
+    const uint16_t port = portEnv ? static_cast<uint16_t>(std::stoi(portEnv)) : 8080;
+    app().addListener("0.0.0.0", port);
+    app().setDocumentRoot("/app/public");
     app().setLogLevel(trantor::Logger::kInfo);
     app().run();
     return 0;
