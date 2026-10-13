@@ -63,7 +63,7 @@ Drogon (C++20 async web server, port 8080)
 | Database   | PostgreSQL 17 + libpq (raw, no ORM)                     |
 | Frontend   | Plain HTML5, CSS3, Vanilla JavaScript (ES6), no framework, no build step |
 | AI         | OpenAI-compatible chat API (optional) + local fallback  |
-| Deployment | Windows host + Cloudflare Quick Tunnel (public HTTPS)   |
+| Deployment | Render (Docker + PostgreSQL) or Cloudflare Quick Tunnel |
 
 ## Database
 
@@ -170,7 +170,27 @@ PostgreSQL).
 
 ## Deployment
 
-Current deploy topology (this machine, public via Cloudflare Quick Tunnel):
+### Deploy on Render
+
+This repository includes a Render Blueprint (`render.yaml`) that creates the Docker web
+service and a PostgreSQL database, then connects them through `DATABASE_URL`.
+
+1. Push the project to GitHub, including `render.yaml`.
+2. In the Render Dashboard, choose **New + → Blueprint** and connect this repository.
+3. Review the services and select **Apply**. Render will build the Docker image, create the
+   database, and deploy the backend.
+4. Open the web service's `onrender.com` URL. Render's health check uses `/api/health`.
+
+The AI assistant works in local fallback mode without extra settings. To use an AI provider,
+add `JK_AI_API_URL`, `JK_AI_API_KEY`, and optionally `JK_AI_MODEL` in the web service's
+Environment settings; never put API keys in `render.yaml` or source control.
+
+The Blueprint uses Render's free plans. Check Render's current free-service limits before
+relying on the database for long-term data storage.
+
+### Existing local Cloudflare Quick Tunnel setup
+
+The original local demo can still be run with this topology:
 
 1. **PostgreSQL 17** local service, database `jkmart`.
 2. **Backend** `app\build\jkmart_backend.exe` launched by `app\start-prod.bat`
